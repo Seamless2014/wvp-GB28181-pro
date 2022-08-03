@@ -33,13 +33,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.alibaba.fastjson.JSONObject;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.impl.SIPCommander;
-import com.genersoft.iot.vmp.storager.IVideoManagerStorager;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 import java.util.UUID;
-
-import javax.sip.message.Response;
 
 @Api(tags = "国标设备点播")
 @CrossOrigin
@@ -56,7 +54,7 @@ public class PlayController {
 	private VideoStreamSessionManager streamSession;
 
 	@Autowired
-	private IVideoManagerStorager storager;
+	private IVideoManagerStorage storager;
 
 	@Autowired
 	private IRedisCatchStorage redisCatchStorage;
@@ -88,7 +86,7 @@ public class PlayController {
 		// 获取可用的zlm
 		Device device = storager.queryVideoDevice(deviceId);
 		MediaServerItem newMediaServerItem = playService.getNewMediaServerItem(device);
-		PlayResult playResult = playService.play(newMediaServerItem, deviceId, channelId, null, null);
+		PlayResult playResult = playService.play(newMediaServerItem, deviceId, channelId, null, null, null);
 
 		return playResult.getResult();
 	}
@@ -101,32 +99,32 @@ public class PlayController {
 	@GetMapping("/stop/{deviceId}/{channelId}")
 	public DeferredResult<ResponseEntity<String>> playStop(@PathVariable String deviceId, @PathVariable String channelId) {
 
-		logger.debug(String.format("设备预览/回放停止API调用，streamId：%s/%s", deviceId, channelId ));
+		logger.debug(String.format("设备预览/回放停止API调用，streamId：%s_%s", deviceId, channelId ));
 
-		UUID uuid = UUID.randomUUID();
+		String uuid = UUID.randomUUID().toString();
 		DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>();
 
 		// 录像查询以channelId作为deviceId查询
-		resultHolder.put(DeferredResultHolder.CALLBACK_CMD_STOP + uuid, result);
-		Device device = storager.queryVideoDevice(deviceId);
-		cmder.streamByeCmd(deviceId, channelId, (event) -> {
-			StreamInfo streamInfo = redisCatchStorage.queryPlayByDevice(deviceId, channelId);
-			if (streamInfo == null) {
-				RequestMessage msg = new RequestMessage();
-				msg.setId(DeferredResultHolder.CALLBACK_CMD_STOP + uuid);
-				msg.setData("点播未找到");
-				resultHolder.invokeResult(msg);
-				storager.stopPlay(deviceId, channelId);
-			}else {
-				redisCatchStorage.stopPlay(streamInfo);
-				storager.stopPlay(streamInfo.getDeviceID(), streamInfo.getChannelId());
-				RequestMessage msg = new RequestMessage();
-				msg.setId(DeferredResultHolder.CALLBACK_CMD_STOP + uuid);
-				//Response response = event.getResponse();
-				msg.setData(String.format("success"));
-				resultHolder.invokeResult(msg);
-			}
-			mediaServerService.closeRTPServer(device, channelId);
+		String key = DeferredResultHolder.CALLBACK_CMD_STOP + deviceId + channelId;
+		resultHolder.put(key, uuid, result);
+		StreamInfo streamInfo = redisCatchStorage.queryPlayByDevice(deviceId, channelId);
+		if (streamInfo == null) {
+			RequestMessage msg = new RequestMessage();
+			msg.setId(uuid);
+			msg.setKey(key);
+			msg.setData("点播未找到");
+			resultHolder.invokeAllResult(msg);
+			storager.stopPlay(deviceId, channelId);
+			return result;
+		}
+		cmder.streamByeCmd(deviceId, channelId, streamInfo.getStream(), null, eventResult -> {
+			redisCatchStorage.stopPlay(streamInfo);
+			storager.stopPlay(streamInfo.getDeviceID(), streamInfo.getChannelId());
+			RequestMessage msgForSuccess = new RequestMessage();
+			msgForSuccess.setId(uuid);
+			msgForSuccess.setKey(key);
+			msgForSuccess.setData(String.format("success"));
+			resultHolder.invokeAllResult(msgForSuccess);
 		});
 
 		if (deviceId != null || channelId != null) {
@@ -134,24 +132,27 @@ public class PlayController {
 			json.put("deviceId", deviceId);
 			json.put("channelId", channelId);
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_PlAY + uuid);
+			msg.setId(uuid);
+			msg.setKey(key);
 			msg.setData(json.toString());
-			resultHolder.invokeResult(msg);
+			resultHolder.invokeAllResult(msg);
 		} else {
 			logger.warn("设备预览/回放停止API调用失败！");
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_PlAY + uuid);
+			msg.setId(uuid);
+			msg.setKey(key);
 			msg.setData("streamId null");
-			resultHolder.invokeResult(msg);
+			resultHolder.invokeAllResult(msg);
 		}
 
 		// 超时处理
 		result.onTimeout(()->{
-			logger.warn(String.format("设备预览/回放停止超时，deviceId/channelId：%s/%s ", deviceId, channelId));
+			logger.warn(String.format("设备预览/回放停止超时，deviceId/channelId：%s_%s ", deviceId, channelId));
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_STOP + uuid);
+			msg.setId(uuid);
+			msg.setKey(key);
 			msg.setData("Timeout");
-			resultHolder.invokeResult(msg);
+			resultHolder.invokeAllResult(msg);
 		});
 		return result;
 	}
@@ -169,7 +170,7 @@ public class PlayController {
 	public ResponseEntity<String> playConvert(@PathVariable String streamId) {
 		StreamInfo streamInfo = redisCatchStorage.queryPlayByStreamId(streamId);
 		if (streamInfo == null) {
-			streamInfo = redisCatchStorage.queryPlaybackByStreamId(streamId);
+			streamInfo = redisCatchStorage.queryPlayback(null, null, streamId, null);
 		}
 		if (streamInfo == null) {
 			logger.warn("视频转码API调用失败！, 视频流已经停止!");
@@ -192,7 +193,7 @@ public class PlayController {
 				JSONObject data = jsonObject.getJSONObject("data");
 				if (data != null) {
 				   	result.put("key", data.getString("key"));
-					StreamInfo streamInfoResult = mediaService.getStreamInfoByAppAndStreamWithCheck("convert", streamId, mediaInfo.getId());
+					StreamInfo streamInfoResult = mediaService.getStreamInfoByAppAndStreamWithCheck("convert", streamId, mediaInfo.getId(), false);
 					result.put("data", streamInfoResult);
 				}
 			}else {
@@ -259,10 +260,18 @@ public class PlayController {
         }
         Device device = storager.queryVideoDevice(deviceId);
 		DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>(3 * 1000L);
+		String key  = DeferredResultHolder.CALLBACK_CMD_BROADCAST + deviceId;
+		if (resultHolder.exist(key, null)) {
+			result.setResult(new ResponseEntity<>("设备使用中",HttpStatus.OK));
+			return result;
+		}
+		String uuid  = UUID.randomUUID().toString();
         if (device == null) {
-			resultHolder.put(DeferredResultHolder.CALLBACK_CMD_BROADCAST + deviceId, result);
+
+			resultHolder.put(key, key,  result);
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_BROADCAST + deviceId);
+			msg.setKey(key);
+			msg.setId(uuid);
 			JSONObject json = new JSONObject();
 			json.put("DeviceID", deviceId);
 			json.put("CmdType", "Broadcast");
@@ -273,14 +282,14 @@ public class PlayController {
 			return result;
 		}
 		cmder.audioBroadcastCmd(device, (event) -> {
-			Response response = event.getResponse();
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_BROADCAST + deviceId);
+			msg.setKey(key);
+			msg.setId(uuid);
 			JSONObject json = new JSONObject();
 			json.put("DeviceID", deviceId);
 			json.put("CmdType", "Broadcast");
 			json.put("Result", "Failed");
-			json.put("Description", String.format("语音广播操作失败，错误码： %s, %s", response.getStatusCode(), response.getReasonPhrase()));
+			json.put("Description", String.format("语音广播操作失败，错误码： %s, %s", event.statusCode, event.msg));
 			msg.setData(json);
 			resultHolder.invokeResult(msg);
 		});
@@ -288,7 +297,8 @@ public class PlayController {
 		result.onTimeout(() -> {
 			logger.warn(String.format("语音广播操作超时, 设备未返回应答指令"));
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_BROADCAST + deviceId);
+			msg.setKey(key);
+			msg.setId(uuid);
 			JSONObject json = new JSONObject();
 			json.put("DeviceID", deviceId);
 			json.put("CmdType", "Broadcast");
@@ -297,7 +307,7 @@ public class PlayController {
 			msg.setData(json);
 			resultHolder.invokeResult(msg);
 		});
-		resultHolder.put(DeferredResultHolder.CALLBACK_CMD_BROADCAST + deviceId, result);
+		resultHolder.put(key, uuid, result);
 		return result;
 	}
 
@@ -314,7 +324,7 @@ public class PlayController {
 			jsonObject.put("deviceId", transaction.getDeviceId());
 			jsonObject.put("channelId", transaction.getChannelId());
 			jsonObject.put("ssrc", transaction.getSsrc());
-			jsonObject.put("streamId", transaction.getStreamId());
+			jsonObject.put("streamId", transaction.getStream());
 			objects.add(jsonObject);
 		}
 

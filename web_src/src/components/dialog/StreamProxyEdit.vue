@@ -46,7 +46,6 @@
                   style="width: 100%"
                   placeholder="请选择拉流节点"
                 >
-                  <el-option label="自动选择" value="auto"></el-option>
                   <el-option
                     v-for="item in mediaServerList"
                     :key="item.id"
@@ -106,6 +105,7 @@
                   <el-checkbox label="启用" v-model="proxyParam.enable" ></el-checkbox>
                   <el-checkbox label="转HLS" v-model="proxyParam.enable_hls" ></el-checkbox>
                   <el-checkbox label="MP4录制" v-model="proxyParam.enable_mp4" ></el-checkbox>
+                  <el-checkbox label="无人观看自动删除" v-model="proxyParam.enable_remove_none_reader" ></el-checkbox>
                 </div>
 
               </el-form-item>
@@ -160,7 +160,7 @@ export default {
           type: "default",
           app: null,
           stream: null,
-          url: "rtmp://58.200.131.2/livetv/cctv5hd",
+          url: "",
           src_url: null,
           timeout_ms: null,
           ffmpeg_cmd_key: null,
@@ -169,8 +169,9 @@ export default {
           enable: true,
           enable_hls: true,
           enable_mp4: false,
+          enable_remove_none_reader: false,
           platformGbId: null,
-          mediaServerId: "auto",
+          mediaServerId: null,
       },
       mediaServerList:{},
       ffmpegCmdList:{},
@@ -197,14 +198,16 @@ export default {
       let that = this;
       this.$axios({
         method: 'get',
-        url:`/api/platform/query/10000/0`
+        url:`/api/platform/query/10000/1`
       }).then(function (res) {
         that.platformList = res.data.list;
       }).catch(function (error) {
         console.log(error);
       });
-      this.mediaServer.getMediaServerList((data)=>{
-        this.mediaServerList = data;
+      this.mediaServer.getOnlineMediaServerList((data)=>{
+        this.mediaServerList = data.data;
+        this.proxyParam.mediaServerId = this.mediaServerList[0].id
+        this.mediaServerIdChange()
       })
     },
     mediaServerIdChange:function (){
@@ -218,6 +221,7 @@ export default {
           }
         }).then(function (res) {
           that.ffmpegCmdList = res.data.data;
+          that.proxyParam.ffmpeg_cmd_key = Object.keys(res.data.data)[0];
         }).catch(function (error) {
           console.log(error);
         });

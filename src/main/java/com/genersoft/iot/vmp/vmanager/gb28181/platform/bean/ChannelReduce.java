@@ -1,9 +1,16 @@
 package com.genersoft.iot.vmp.vmanager.gb28181.platform.bean;
 
+import com.genersoft.iot.vmp.gb28181.bean.DeviceChannel;
+
 /**
  * 精简的channel信息展示，主要是选择通道的时候展示列表使用
  */
 public class ChannelReduce {
+
+    /**
+     * deviceChannel的数据库自增ID
+     */
+    private int id;
 
     /**
      * 通道id
@@ -40,6 +47,18 @@ public class ChannelReduce {
      */
     private String  platformId;
 
+    /**
+     * 目录Id
+     */
+    private String  catalogId;
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
 
     public String getChannelId() {
         return channelId;
@@ -95,5 +114,13 @@ public class ChannelReduce {
 
     public void setPlatformId(String platformId) {
         this.platformId = platformId;
+    }
+
+    public String getCatalogId() {
+        return catalogId;
+    }
+
+    public void setCatalogId(String catalogId) {
+        this.catalogId = catalogId;
     }
 }

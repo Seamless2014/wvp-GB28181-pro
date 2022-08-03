@@ -75,7 +75,10 @@ export default {
       isLoging: false,
       rules: {
         oldPassword: [{ required: true, validator: validatePass0, trigger: "blur" }],
-        newPassword: [{ required: true, validator: validatePass1, trigger: "blur" }],
+        newPassword: [{ required: true, validator: validatePass1, trigger: "blur" }, {
+            pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,.\/]).{8,20}$/,
+            message: "密码长度在8-20位之间,由字母+数字+特殊字符组成",
+          },],
         confirmPassword: [{ required: true, validator: validatePass2, trigger: "blur" }],
       },
     };
@@ -89,7 +92,7 @@ export default {
         method: 'post',
         url:"/api/user/changePassword",
         params: {
-          oldpassword: crypto.createHash('md5').update(this.oldPassword, "utf8").digest('hex'),
+          oldPassword: crypto.createHash('md5').update(this.oldPassword, "utf8").digest('hex'),
           password: this.newPassword
         }
       }).then((res)=> {
@@ -106,6 +109,12 @@ export default {
             this.$router.push('/login');
             this.sseSource.close();
           },800)
+        }else {
+          this.$message({
+            showClose: true,
+            message: '修改密码失败，是否已登录（接口鉴权关闭无法修改密码）',
+            type: 'error'
+          });
         }
       }).catch((error)=> {
         console.error(error)

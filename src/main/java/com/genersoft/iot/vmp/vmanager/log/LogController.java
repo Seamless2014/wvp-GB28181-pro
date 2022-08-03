@@ -1,9 +1,9 @@
 package com.genersoft.iot.vmp.vmanager.log;
 
-import com.genersoft.iot.vmp.conf.UserSetup;
-import com.genersoft.iot.vmp.media.zlm.ZLMRunner;
+import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.service.ILogService;
 import com.genersoft.iot.vmp.storager.dao.dto.LogDto;
+import com.genersoft.iot.vmp.utils.DateUtil;
 import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import com.github.pagehelper.PageInfo;
 import io.swagger.annotations.Api;
@@ -19,7 +19,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 
 @Api(tags = "日志管理")
 @CrossOrigin
@@ -33,9 +32,7 @@ public class LogController {
     private ILogService logService;
 
     @Autowired
-    private UserSetup userSetup;
-
-    private SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private UserSetting userSetting;
 
     /**
      *  分页查询日志
@@ -66,17 +63,20 @@ public class LogController {
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime
     ) {
-        if (StringUtils.isEmpty(query)) query = null;
-        if (StringUtils.isEmpty(startTime)) startTime = null;
-        if (StringUtils.isEmpty(endTime)) endTime = null;
-        if (!userSetup.getLogInDatebase()) {
+        if (StringUtils.isEmpty(query)) {
+            query = null;
+        }
+        if (StringUtils.isEmpty(startTime)) {
+            startTime = null;
+        }
+        if (StringUtils.isEmpty(endTime)) {
+            endTime = null;
+        }
+        if (!userSetting.getLogInDatebase()) {
             logger.warn("自动记录日志功能已关闭，查询结果可能不完整。");
         }
 
-        try {
-            if (startTime != null)  format.parse(startTime);
-            if (endTime != null)  format.parse(endTime);
-        } catch (ParseException e) {
+        if (!DateUtil.verification(startTime, DateUtil.formatter) || !DateUtil.verification(endTime, DateUtil.formatter)){
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
 

@@ -3,13 +3,14 @@ package com.genersoft.iot.vmp.utils.redis;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import com.alibaba.fastjson.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 /**    
- * @Description:Redis工具类
+ * @description:Redis工具类
  * @author: swwheihei
  * @date:   2020年5月6日 下午8:27:29     
  */
@@ -660,6 +661,24 @@ public class RedisUtil {
     }
 
     /**
+     * 在键为 key 的 list中移除第一个元素
+     * @param key 键
+     * @return
+     */
+    public Object lLeftPop(String key) {
+        return redisTemplate.opsForList().leftPop(key);
+    }
+
+    /**
+     * 在键为 key 的 list中移除、最后一个元素
+     * @param key 键
+     * @return
+     */
+    public Object lrightPop(String key) {
+        return redisTemplate.opsForList().rightPop(key);
+    }
+
+    /**
      * 模糊查询
      * @param key 键
      * @return true / false
@@ -727,6 +746,13 @@ public class RedisUtil {
 //        });
 
         return new ArrayList<>(keys);
+    }
+
+    //    ============================== 消息发送与订阅 ==============================
+    public void convertAndSend(String channel, JSONObject msg) {
+//        redisTemplate.convertAndSend(channel, msg);
+        redisTemplate.convertAndSend(channel, msg);
+
     }
 
 }

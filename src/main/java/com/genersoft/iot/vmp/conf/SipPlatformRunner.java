@@ -3,9 +3,9 @@ package com.genersoft.iot.vmp.conf;
 import com.genersoft.iot.vmp.gb28181.bean.ParentPlatform;
 import com.genersoft.iot.vmp.gb28181.bean.ParentPlatformCatch;
 import com.genersoft.iot.vmp.gb28181.event.EventPublisher;
-import com.genersoft.iot.vmp.media.zlm.ZLMRTPServerFactory;
+import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
-import com.genersoft.iot.vmp.storager.IVideoManagerStorager;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
@@ -21,7 +21,7 @@ import java.util.List;
 public class SipPlatformRunner implements CommandLineRunner {
 
     @Autowired
-    private IVideoManagerStorager storager;
+    private IVideoManagerStorage storager;
 
     @Autowired
     private IRedisCatchStorage redisCatchStorage;
@@ -30,7 +30,7 @@ public class SipPlatformRunner implements CommandLineRunner {
     private EventPublisher publisher;
 
     @Autowired
-    private ZLMRTPServerFactory zlmrtpServerFactory;
+    private ISIPCommanderForPlatform sipCommanderForPlatform;
 
 
     @Override
@@ -57,8 +57,11 @@ public class SipPlatformRunner implements CommandLineRunner {
             parentPlatformCatch.setId(parentPlatform.getServerGBId());
             redisCatchStorage.updatePlatformCatchInfo(parentPlatformCatch);
 
-            // 发送平台未注册消息
-            publisher.platformNotRegisterEventPublish(parentPlatform.getServerGBId());
+            // 取消订阅
+            sipCommanderForPlatform.unregister(parentPlatform, null, (eventResult)->{
+                // 发送平台未注册消息
+                publisher.platformNotRegisterEventPublish(parentPlatform.getServerGBId());
+            });
         }
     }
 }

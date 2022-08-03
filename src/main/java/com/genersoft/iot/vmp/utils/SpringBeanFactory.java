@@ -6,7 +6,7 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.stereotype.Component;
 
 /**    
- * @Description:spring bean获取工厂，获取spring中的已初始化的bean
+ * @description:spring bean获取工厂，获取spring中的已初始化的bean
  * @author: swwheihei
  * @date:   2019年6月25日 下午4:51:52   
  * 
@@ -34,7 +34,9 @@ public class SpringBeanFactory implements ApplicationContextAware {
      * 获取对象 这里重写了bean方法，起主要作用
      */
     public static Object getBean(String beanId) throws BeansException {
-        if (applicationContext == null) return null;
+        if (applicationContext == null) {
+            return null;
+        }
         return applicationContext.getBean(beanId);
     }
 

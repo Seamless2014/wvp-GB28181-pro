@@ -5,6 +5,7 @@ package com.genersoft.iot.vmp.gb28181.bean;
  */
 public class GbStream extends PlatformGbStream{
 
+    private Integer gbStreamId;
     private String app;
     private String stream;
     private String gbId;
@@ -14,6 +15,18 @@ public class GbStream extends PlatformGbStream{
     private double latitude;
     private String streamType;
     private boolean status;
+
+    public String createTime;
+
+    @Override
+    public Integer getGbStreamId() {
+        return gbStreamId;
+    }
+
+    @Override
+    public void setGbStreamId(Integer gbStreamId) {
+        this.gbStreamId = gbStreamId;
+    }
 
     public String getApp() {
         return app;
@@ -85,5 +98,13 @@ public class GbStream extends PlatformGbStream{
 
     public void setMediaServerId(String mediaServerId) {
         this.mediaServerId = mediaServerId;
+    }
+
+    public String getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(String createTime) {
+        this.createTime = createTime;
     }
 }

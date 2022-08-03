@@ -1,13 +1,16 @@
 package com.genersoft.iot.vmp.gb28181.transmit.cmd;
 
-import com.genersoft.iot.vmp.gb28181.bean.Device;
+import com.genersoft.iot.vmp.common.StreamInfo;
+import com.genersoft.iot.vmp.gb28181.bean.*;
 import com.genersoft.iot.vmp.gb28181.event.SipSubscribe;
 import com.genersoft.iot.vmp.media.zlm.ZLMHttpHookSubscribe;
 import com.genersoft.iot.vmp.media.zlm.dto.MediaServerItem;
 import com.genersoft.iot.vmp.service.bean.SSRCInfo;
 
+import javax.sip.Dialog;
+
 /**    
- * @Description:设备能力接口，用于定义设备的控制、查询能力   
+ * @description:设备能力接口，用于定义设备的控制、查询能力   
  * @author: swwheihei
  * @date:   2020年5月3日 下午9:16:34     
  */
@@ -20,7 +23,6 @@ public interface ISIPCommander {
 	 * @param channelId  预览通道
 	 * @param leftRight  镜头左移右移 0:停止 1:左移 2:右移
      * @param upDown     镜头上移下移 0:停止 1:上移 2:下移
-     * @param moveSpeed  镜头移动速度
 	 */
 	boolean ptzdirectCmd(Device device,String channelId,int leftRight, int upDown);
 	
@@ -50,7 +52,6 @@ public interface ISIPCommander {
 	 * @param device  控制设备
 	 * @param channelId  预览通道
      * @param inOut      镜头放大缩小 0:停止 1:缩小 2:放大
-     * @param zoomSpeed  镜头缩放速度
 	 */
 	boolean ptzZoomCmd(Device device,String channelId,int inOut, int moveSpeed);
 	
@@ -85,15 +86,15 @@ public interface ISIPCommander {
 	 * @param channelId		预览通道
 	 * @param cmdString		前端控制指令串
 	 */
-	boolean fronEndCmd(Device device, String channelId, String cmdString);
+	boolean fronEndCmd(Device device, String channelId, String cmdString, SipSubscribe.Event errorEvent, SipSubscribe.Event okEvent);
 
 	/**
 	 * 请求预览视频流
 	 * @param device  视频设备
 	 * @param channelId  预览通道
 	 */
-	void playStreamCmd(MediaServerItem mediaServerItem, SSRCInfo ssrcInfo, Device device, String channelId, ZLMHttpHookSubscribe.Event event, SipSubscribe.Event errorEvent);
-	
+	void playStreamCmd(MediaServerItem mediaServerItem, SSRCInfo ssrcInfo, Device device, String channelId, ZLMHttpHookSubscribe.Event event, SipSubscribe.Event okEvent, SipSubscribe.Event errorEvent);
+
 	/**
 	 * 请求回放视频流
 	 * 
@@ -102,7 +103,7 @@ public interface ISIPCommander {
 	 * @param startTime 开始时间,格式要求：yyyy-MM-dd HH:mm:ss
 	 * @param endTime 结束时间,格式要求：yyyy-MM-dd HH:mm:ss
 	 */
-	void playbackStreamCmd(MediaServerItem mediaServerItem, SSRCInfo ssrcInf, Device device, String channelId, String startTime, String endTime, ZLMHttpHookSubscribe.Event event, SipSubscribe.Event errorEvent);
+	void playbackStreamCmd(MediaServerItem mediaServerItem, SSRCInfo ssrcInf, Device device, String channelId, String startTime, String endTime,InviteStreamCallback inviteStreamCallback, InviteStreamCallback event, SipSubscribe.Event errorEvent);
 
 	/**
 	 * 请求历史媒体下载
@@ -113,13 +114,43 @@ public interface ISIPCommander {
 	 * @param endTime 结束时间,格式要求：yyyy-MM-dd HH:mm:ss
 	 * @param downloadSpeed 下载倍速参数
 	 */ 
-	void downloadStreamCmd(MediaServerItem mediaServerItem, SSRCInfo ssrcInfo, Device device, String channelId, String startTime, String endTime, String downloadSpeed, ZLMHttpHookSubscribe.Event event, SipSubscribe.Event errorEvent);
+	void downloadStreamCmd(MediaServerItem mediaServerItem, SSRCInfo ssrcInfo, Device device, String channelId,
+						   String startTime, String endTime, int downloadSpeed, InviteStreamCallback inviteStreamCallback, InviteStreamCallback hookEvent,
+						   SipSubscribe.Event errorEvent);
 
 	/**
 	 * 视频流停止
 	 */
-	void streamByeCmd(String deviceId, String channelId, SipSubscribe.Event okEvent);
-	void streamByeCmd(String deviceId, String channelId);
+	void streamByeCmd(String deviceId, String channelId, String stream, String callId, SipSubscribe.Event okEvent);
+	void streamByeCmd(String deviceId, String channelId, String stream, String callId);
+
+	/**
+	 * 回放暂停
+	 */
+	void playPauseCmd(Device device, StreamInfo streamInfo);
+
+	/**
+	 * 回放恢复
+	 */
+	void playResumeCmd(Device device, StreamInfo streamInfo);
+
+	/**
+	 * 回放拖动播放
+	 */
+	void playSeekCmd(Device device, StreamInfo streamInfo, long seekTime);
+
+	/**
+	 * 回放倍速播放
+	 */
+	void playSpeedCmd(Device device, StreamInfo streamInfo, Double speed);
+	
+	/**
+	 * 回放控制
+	 * @param device
+	 * @param streamInfo
+	 * @param content
+	 */
+	void playbackControlCmd(Device device, StreamInfo streamInfo, String content,SipSubscribe.Event errorEvent, SipSubscribe.Event okEvent);
 
 	/**
 	 * 语音广播
@@ -157,7 +188,6 @@ public interface ISIPCommander {
 	 * 报警布防/撤防命令
 	 * 
 	 * @param device  	视频设备
-	 * @param setGuard	true: SetGuard, false: ResetGuard
 	 */
 	boolean guardCmd(Device device, String guardCmdStr, SipSubscribe.Event errorEvent);
 	
@@ -227,7 +257,7 @@ public interface ISIPCommander {
 	 * 
 	 * @param device 视频设备
 	 */
-	boolean catalogQuery(Device device, SipSubscribe.Event errorEvent);
+	boolean catalogQuery(Device device, int sn, SipSubscribe.Event errorEvent);
 	
 	/**
 	 * 查询录像信息
@@ -235,8 +265,9 @@ public interface ISIPCommander {
 	 * @param device 视频设备
 	 * @param startTime 开始时间,格式要求：yyyy-MM-dd HH:mm:ss
 	 * @param endTime 结束时间,格式要求：yyyy-MM-dd HH:mm:ss
+	 * @param sn
 	 */
-	boolean recordInfoQuery(Device device, String channelId, String startTime, String endTime);
+	boolean recordInfoQuery(Device device, String channelId, String startTime, String endTime, int sn,  Integer Secrecy, String type, SipSubscribe.Event okEvent, SipSubscribe.Event errorEvent);
 	
 	/**
 	 * 查询报警信息
@@ -280,11 +311,9 @@ public interface ISIPCommander {
 	 * 订阅、取消订阅移动位置
 	 * 
 	 * @param device	视频设备
-	 * @param expires	订阅超时时间（值=0时为取消订阅）
-	 * @param interval	上报时间间隔
 	 * @return			true = 命令发送成功
 	 */
-	boolean mobilePositionSubscribe(Device device, int expires, int interval);
+	boolean mobilePositionSubscribe(Device device, Dialog dialog, SipSubscribe.Event okEvent , SipSubscribe.Event errorEvent);
 
 	/**
 	 * 订阅、取消订阅报警信息
@@ -292,11 +321,35 @@ public interface ISIPCommander {
 	 * @param expires		订阅过期时间（0 = 取消订阅）
 	 * @param startPriority	报警起始级别（可选）
 	 * @param endPriority	报警终止级别（可选）
-	 * @param alarmMethods	报警方式条件（可选）
 	 * @param alarmType		报警类型
 	 * @param startTime		报警发生起始时间（可选）
 	 * @param endTime		报警发生终止时间（可选）
 	 * @return				true = 命令发送成功
 	 */
 	boolean alarmSubscribe(Device device, int expires, String startPriority, String endPriority, String alarmMethod, String alarmType, String startTime, String endTime);
+
+	/**
+	 * 订阅、取消订阅目录信息
+	 * @param device		视频设备
+	 * @return				true = 命令发送成功
+	 */
+	boolean catalogSubscribe(Device device, Dialog dialog, SipSubscribe.Event okEvent ,SipSubscribe.Event errorEvent);
+
+	/**
+	 * 拉框控制命令
+	 *
+	 * @param device    控制设备
+	 * @param channelId 通道id
+	 * @param cmdString 前端控制指令串
+	 */
+	boolean dragZoomCmd(Device device, String channelId, String cmdString);
+
+
+	/**
+	 * 向设备发送报警NOTIFY消息， 用于互联结构下，此时将设备当成一个平级平台看待
+	 * @param device 设备
+	 * @param deviceAlarm 报警信息信息
+	 * @return
+	 */
+	boolean sendAlarmMessage(Device device, DeviceAlarm deviceAlarm);
 }

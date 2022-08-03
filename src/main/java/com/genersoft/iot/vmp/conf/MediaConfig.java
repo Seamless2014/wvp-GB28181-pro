@@ -1,17 +1,21 @@
 package com.genersoft.iot.vmp.conf;
 
 import com.genersoft.iot.vmp.media.zlm.dto.MediaServerItem;
+import com.genersoft.iot.vmp.utils.DateUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.regex.Pattern;
+
 
 @Configuration("mediaConfig")
 public class MediaConfig{
 
-    @Value("${media.id:}")
+    // 修改必须配置，不再支持自动获取
+    @Value("${media.id}")
     private String id;
 
     @Value("${media.ip}")
@@ -59,14 +63,18 @@ public class MediaConfig{
     @Value("${media.secret}")
     private String secret;
 
-    @Value("${media.stream-none-reader-delay-ms:18000}")
-    private String streamNoneReaderDelayMS = "18000";
+    @Value("${media.stream-none-reader-delay-ms:10000}")
+    private int streamNoneReaderDelayMS = 10000;
 
     @Value("${media.rtp.enable}")
     private boolean rtpEnable;
 
     @Value("${media.rtp.port-range}")
     private String rtpPortRange;
+
+
+    @Value("${media.rtp.send-port-range}")
+    private String sendRtpPortRange;
 
     @Value("${media.record-assist-port:0}")
     private Integer recordAssistPort = 0;
@@ -89,7 +97,11 @@ public class MediaConfig{
     }
 
     public String getSipIp() {
-        return sipIp;
+        if (sipIp == null) {
+            return this.ip;
+        }else {
+            return sipIp;
+        }
     }
 
     public int getHttpPort() {
@@ -133,7 +145,7 @@ public class MediaConfig{
         return secret;
     }
 
-    public String getStreamNoneReaderDelayMS() {
+    public int getStreamNoneReaderDelayMS() {
         return streamNoneReaderDelayMS;
     }
 
@@ -153,7 +165,18 @@ public class MediaConfig{
         if (StringUtils.isEmpty(sdpIp)){
             return ip;
         }else {
-            return sdpIp;
+            if (isValidIPAddress(sdpIp)) {
+                return sdpIp;
+            }else {
+                // 按照域名解析
+                String hostAddress = null;
+                try {
+                    hostAddress = InetAddress.getByName(sdpIp).getHostAddress();
+                } catch (UnknownHostException e) {
+                    throw new RuntimeException(e);
+                }
+                return hostAddress;
+            }
         }
     }
 
@@ -165,19 +188,27 @@ public class MediaConfig{
         }
     }
 
+    public String getSipDomain() {
+        return sipDomain;
+    }
+
+    public String getSendRtpPortRange() {
+        return sendRtpPortRange;
+    }
+
     public MediaServerItem getMediaSerItem(){
         MediaServerItem mediaServerItem = new MediaServerItem();
         mediaServerItem.setId(id);
         mediaServerItem.setIp(ip);
         mediaServerItem.setDefaultServer(true);
         mediaServerItem.setHookIp(getHookIp());
-        mediaServerItem.setSdpIp(sdpIp);
-        mediaServerItem.setStreamIp(streamIp);
+        mediaServerItem.setSdpIp(getSdpIp());
+        mediaServerItem.setStreamIp(getStreamIp());
         mediaServerItem.setHttpPort(httpPort);
         mediaServerItem.setHttpSSlPort(httpSSlPort);
         mediaServerItem.setRtmpPort(rtmpPort);
         mediaServerItem.setRtmpSSlPort(rtmpSSlPort);
-        mediaServerItem.setRtpProxyPort(rtpProxyPort);
+        mediaServerItem.setRtpProxyPort(getRtpProxyPort());
         mediaServerItem.setRtspPort(rtspPort);
         mediaServerItem.setRtspSSLPort(rtspSSLPort);
         mediaServerItem.setAutoConfig(autoConfig);
@@ -185,13 +216,21 @@ public class MediaConfig{
         mediaServerItem.setStreamNoneReaderDelayMS(streamNoneReaderDelayMS);
         mediaServerItem.setRtpEnable(rtpEnable);
         mediaServerItem.setRtpPortRange(rtpPortRange);
+        mediaServerItem.setSendRtpPortRange(sendRtpPortRange);
         mediaServerItem.setRecordAssistPort(recordAssistPort);
+        mediaServerItem.setHookAliveInterval(120);
 
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        mediaServerItem.setCreateTime(format.format(System.currentTimeMillis()));
-        mediaServerItem.setUpdateTime(format.format(System.currentTimeMillis()));
+        mediaServerItem.setCreateTime(DateUtil.getNow());
+        mediaServerItem.setUpdateTime(DateUtil.getNow());
 
         return mediaServerItem;
+    }
+
+    private boolean isValidIPAddress(String ipAddress) {
+        if ((ipAddress != null) && (!ipAddress.isEmpty())) {
+            return Pattern.matches("^([1-9]|[1-9]\\d|1\\d{2}|2[0-4]\\d|25[0-5])(\\.(\\d|[1-9]\\d|1\\d{2}|2[0-4]\\d|25[0-5])){3}$", ipAddress);
+        }
+        return false;
     }
 
 }

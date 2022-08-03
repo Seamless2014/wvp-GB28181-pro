@@ -1,8 +1,18 @@
 package com.genersoft.iot.vmp.media.zlm.dto;
 
+import com.genersoft.iot.vmp.common.StreamInfo;
+
 import java.util.List;
 
+/**
+ * @author lin
+ */
 public class MediaItem {
+
+    /**
+     * 注册/注销
+     */
+    private boolean regist;
 
     /**
      * 应用名
@@ -13,6 +23,11 @@ public class MediaItem {
      * 流id
      */
     private String stream;
+
+    /**
+     * 推流鉴权Id
+     */
+    private String callId;
 
     /**
      * 观看总人数，包括hls/rtsp/rtmp/http-flv/ws-flv
@@ -54,6 +69,16 @@ public class MediaItem {
     private String originUrl;
 
     /**
+     * 流媒体服务器id
+     */
+    private String mediaServerId;
+
+    /**
+     * 服务器id
+     */
+    private String severId;
+
+    /**
      * GMT unix系统时间戳，单位秒
      */
     private Long createStamp;
@@ -77,6 +102,14 @@ public class MediaItem {
      * 音视频轨道
      */
     private String vhost;
+
+    public boolean isRegist() {
+        return regist;
+    }
+
+    public void setRegist(boolean regist) {
+        this.regist = regist;
+    }
 
     /**
      * 是否是docker部署， docker部署不会自动更新zlm使用的端口，需要自己手动修改
@@ -263,6 +296,8 @@ public class MediaItem {
         }
     }
 
+    private StreamInfo streamInfo;
+
     public String getApp() {
         return app;
     }
@@ -375,5 +410,37 @@ public class MediaItem {
 
     public void setDocker(boolean docker) {
         this.docker = docker;
+    }
+
+    public String getMediaServerId() {
+        return mediaServerId;
+    }
+
+    public void setMediaServerId(String mediaServerId) {
+        this.mediaServerId = mediaServerId;
+    }
+
+    public StreamInfo getStreamInfo() {
+        return streamInfo;
+    }
+
+    public void setStreamInfo(StreamInfo streamInfo) {
+        this.streamInfo = streamInfo;
+    }
+
+    public String getSeverId() {
+        return severId;
+    }
+
+    public void setSeverId(String severId) {
+        this.severId = severId;
+    }
+
+    public String getCallId() {
+        return callId;
+    }
+
+    public void setCallId(String callId) {
+        this.callId = callId;
     }
 }

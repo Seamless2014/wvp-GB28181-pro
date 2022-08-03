@@ -1,10 +1,15 @@
 package com.genersoft.iot.vmp.gb28181.event.offline;
 
+import com.genersoft.iot.vmp.conf.RedisKeyExpirationEventMessageListener;
+import com.genersoft.iot.vmp.conf.UserSetting;
+import com.genersoft.iot.vmp.gb28181.bean.Device;
+import com.genersoft.iot.vmp.gb28181.bean.ParentPlatform;
+import com.genersoft.iot.vmp.gb28181.event.SipSubscribe;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.Message;
-import org.springframework.data.redis.listener.KeyExpirationEventMessageListener;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.stereotype.Component;
 
@@ -12,20 +17,28 @@ import com.genersoft.iot.vmp.common.VideoManagerConstants;
 import com.genersoft.iot.vmp.gb28181.event.EventPublisher;
 
 /**    
- * @Description:设备心跳超时监听,借助redis过期特性，进行监听，监听到说明设备心跳超时，发送离线事件
- * @author: swwheihei
- * @date:   2020年5月6日 上午11:35:46     
+ * 设备心跳超时监听,借助redis过期特性，进行监听，监听到说明设备心跳超时，发送离线事件
+ * @author swwheihei
  */
 @Component
-public class KeepaliveTimeoutListenerForPlatform extends KeyExpirationEventMessageListener {
+public class KeepaliveTimeoutListenerForPlatform extends RedisKeyExpirationEventMessageListener {
 
     private Logger logger = LoggerFactory.getLogger(KeepaliveTimeoutListenerForPlatform.class);
 
 	@Autowired
 	private EventPublisher publisher;
 
-    public KeepaliveTimeoutListenerForPlatform(RedisMessageListenerContainer listenerContainer) {
-        super(listenerContainer);
+	@Autowired
+	private UserSetting userSetting;
+
+	@Autowired
+	private SipSubscribe sipSubscribe;
+
+	@Autowired
+	private IVideoManagerStorage storager;
+
+    public KeepaliveTimeoutListenerForPlatform(RedisMessageListenerContainer listenerContainer, UserSetting userSetting) {
+        super(listenerContainer, userSetting);
     }
 
 
@@ -38,24 +51,31 @@ public class KeepaliveTimeoutListenerForPlatform extends KeyExpirationEventMessa
     public void onMessage(Message message, byte[] pattern) {
         //  获取失效的key
         String expiredKey = message.toString();
-        logger.debug(expiredKey);
-        if(!expiredKey.startsWith(VideoManagerConstants.PLATFORM_KEEPLIVEKEY_PREFIX)){
-        	logger.debug("收到redis过期监听，但开头不是"+VideoManagerConstants.PLATFORM_KEEPLIVEKEY_PREFIX+"，忽略");
-        	return;
-        }
         // 平台心跳到期,需要重发, 判断是否已经多次未收到心跳回复, 多次未收到,则重新发起注册, 注册尝试多次未得到回复,则认为平台离线
-        if (expiredKey.startsWith(VideoManagerConstants.PLATFORM_KEEPLIVEKEY_PREFIX)) {
-            String platformGBId = expiredKey.substring(VideoManagerConstants.PLATFORM_KEEPLIVEKEY_PREFIX.length(),expiredKey.length());
-
-            publisher.platformKeepaliveExpireEventPublish(platformGBId);
-        }else if (expiredKey.startsWith(VideoManagerConstants.PLATFORM_REGISTER_PREFIX)) {
-            String platformGBId = expiredKey.substring(VideoManagerConstants.PLATFORM_REGISTER_PREFIX.length(),expiredKey.length());
-
-            publisher.platformNotRegisterEventPublish(platformGBId);
-        }else{
-            String deviceId = expiredKey.substring(VideoManagerConstants.KEEPLIVEKEY_PREFIX.length(),expiredKey.length());
-            publisher.outlineEventPublish(deviceId, VideoManagerConstants.EVENT_OUTLINE_TIMEOUT);
+        String PLATFORM_KEEPLIVEKEY_PREFIX = VideoManagerConstants.PLATFORM_KEEPALIVE_PREFIX + userSetting.getServerId() + "_";
+        String PLATFORM_REGISTER_PREFIX = VideoManagerConstants.PLATFORM_REGISTER_PREFIX + userSetting.getServerId() + "_";
+        String REGISTER_INFO_PREFIX = VideoManagerConstants.PLATFORM_REGISTER_INFO_PREFIX + userSetting.getServerId() + "_";
+        if (expiredKey.startsWith(PLATFORM_KEEPLIVEKEY_PREFIX)) {
+            String platformGbId = expiredKey.substring(PLATFORM_KEEPLIVEKEY_PREFIX.length());
+            ParentPlatform platform = storager.queryParentPlatByServerGBId(platformGbId);
+            if (platform != null) {
+                publisher.platformKeepaliveExpireEventPublish(platformGbId);
+            }
+        }else if (expiredKey.startsWith(PLATFORM_REGISTER_PREFIX)) {
+            String platformGbId = expiredKey.substring(PLATFORM_REGISTER_PREFIX.length(),expiredKey.length());
+            ParentPlatform platform = storager.queryParentPlatByServerGBId(platformGbId);
+            if (platform != null) {
+                publisher.platformRegisterCycleEventPublish(platformGbId);
+            }
+        }else if (expiredKey.startsWith(REGISTER_INFO_PREFIX)) {
+            String callId = expiredKey.substring(REGISTER_INFO_PREFIX.length());
+            if (sipSubscribe.getErrorSubscribe(callId) != null) {
+                SipSubscribe.EventResult eventResult = new SipSubscribe.EventResult();
+                eventResult.callId = callId;
+                eventResult.msg = "注册超时";
+                eventResult.type = "register timeout";
+                sipSubscribe.getErrorSubscribe(callId).response(eventResult);
+            }
         }
-
     }
 }

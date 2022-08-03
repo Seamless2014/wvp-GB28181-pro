@@ -1,7 +1,7 @@
 package com.genersoft.iot.vmp.vmanager.gb28181.gbStream;
 
 import com.genersoft.iot.vmp.gb28181.bean.GbStream;
-import com.genersoft.iot.vmp.storager.IVideoManagerStorager;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
 import com.genersoft.iot.vmp.vmanager.gb28181.gbStream.bean.GbStreamParam;
 import com.genersoft.iot.vmp.service.IGbStreamService;
 import com.github.pagehelper.PageInfo;
@@ -12,6 +12,7 @@ import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 @Api(tags = "视频流关联到级联平台")
@@ -26,26 +27,47 @@ public class GbStreamController {
     private IGbStreamService gbStreamService;
 
     @Autowired
-    private IVideoManagerStorager storager;
+    private IVideoManagerStorage storager;
 
 
     /**
      * 查询国标通道
      * @param page 当前页
      * @param count 每页条数
+     * @param platformId 平台ID
      * @return
      */
     @ApiOperation("查询国标通道")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "page", value = "当前页", required = true , dataTypeClass = Integer.class),
             @ApiImplicitParam(name = "count", value = "每页条数", required = true , dataTypeClass = Integer.class),
+            @ApiImplicitParam(name = "platformId", value = "平台ID", required = true , dataTypeClass = String.class),
+            @ApiImplicitParam(name = "catalogId", value = "目录ID", required = false , dataTypeClass = String.class),
+            @ApiImplicitParam(name="query", value = "查询内容", required = false , dataTypeClass = String.class),
+            @ApiImplicitParam(name="mediaServerId", value = "流媒体ID", required = false , dataTypeClass = String.class),
+
     })
     @GetMapping(value = "/list")
     @ResponseBody
-    public PageInfo<GbStream> list(@RequestParam(required = false)Integer page,
-                                   @RequestParam(required = false)Integer count){
+    public PageInfo<GbStream> list(@RequestParam(required = true)Integer page,
+                                   @RequestParam(required = true)Integer count,
+                                   @RequestParam(required = true)String platformId,
+                                   @RequestParam(required = false)String catalogId,
+                                   @RequestParam(required = false)String query,
+                                   @RequestParam(required = false)String mediaServerId){
+        if (StringUtils.isEmpty(catalogId)) {
+            catalogId = null;
+        }
+        if (StringUtils.isEmpty(query)) {
+            query = null;
+        }
+        if (StringUtils.isEmpty(mediaServerId)) {
+            mediaServerId = null;
+        }
 
-        return gbStreamService.getAll(page, count);
+        // catalogId 为null 查询未在平台下分配的数据
+        // catalogId 不为null 查询平台下这个，目录下的通道
+        return gbStreamService.getAll(page, count, platformId, catalogId, query, mediaServerId);
     }
 
 
@@ -62,7 +84,7 @@ public class GbStreamController {
     @DeleteMapping(value = "/del")
     @ResponseBody
     public Object del(@RequestBody GbStreamParam gbStreamParam){
-        if (gbStreamService.delPlatformInfo(gbStreamParam.getGbStreams())) {
+        if (gbStreamService.delPlatformInfo(gbStreamParam.getPlatformId(), gbStreamParam.getGbStreams())) {
             return "success";
         }else {
             return "fail";
@@ -82,7 +104,7 @@ public class GbStreamController {
     @PostMapping(value = "/add")
     @ResponseBody
     public Object add(@RequestBody GbStreamParam gbStreamParam){
-        if (gbStreamService.addPlatformInfo(gbStreamParam.getGbStreams(), gbStreamParam.getPlatformId())) {
+        if (gbStreamService.addPlatformInfo(gbStreamParam.getGbStreams(), gbStreamParam.getPlatformId(), gbStreamParam.getCatalogId())) {
             return "success";
         }else {
             return "fail";

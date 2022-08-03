@@ -1,7 +1,7 @@
 package com.genersoft.iot.vmp.gb28181.bean;
 
 /**
- * @Description: 移动位置bean
+ * @description: 移动位置bean
  * @author: lawrencehj
  * @date: 2021年1月23日
  */
@@ -11,6 +11,11 @@ public class MobilePosition {
      * 设备Id
      */
     private String deviceId;
+
+    /**
+     * 通道Id
+     */
+    private String channelId;
 
     /**
      * 设备名称
@@ -53,19 +58,29 @@ public class MobilePosition {
     private String reportSource;
 
     /**
-     * 国内地理坐标系（GCJ-02 / BD-09）
-     */
-    private String GeodeticSystem;
-
-    /**
      * 国内坐标系：经度坐标
      */
-    private String cnLng;
+    private double longitudeGcj02;
 
     /**
      * 国内坐标系：纬度坐标
      */
-    private String cnLat;
+    private double latitudeGcj02;
+
+    /**
+     * 国内坐标系：经度坐标
+     */
+    private double longitudeWgs84;
+
+    /**
+     * 国内坐标系：纬度坐标
+     */
+    private double latitudeWgs84;
+
+    /**
+     * 创建时间
+     */
+    private String createTime;
 
 
     public String getDeviceId() {
@@ -140,27 +155,51 @@ public class MobilePosition {
         this.reportSource = reportSource;
     }
 
-    public String getGeodeticSystem() {
-        return GeodeticSystem;
+    public String getChannelId() {
+        return channelId;
     }
 
-    public void setGeodeticSystem(String geodeticSystem) {
-        GeodeticSystem = geodeticSystem;
+    public void setChannelId(String channelId) {
+        this.channelId = channelId;
     }
 
-    public String getCnLng() {
-        return cnLng;
+    public double getLongitudeGcj02() {
+        return longitudeGcj02;
     }
 
-    public void setCnLng(String cnLng) {
-        this.cnLng = cnLng;
+    public void setLongitudeGcj02(double longitudeGcj02) {
+        this.longitudeGcj02 = longitudeGcj02;
     }
 
-    public String getCnLat() {
-        return cnLat;
+    public double getLatitudeGcj02() {
+        return latitudeGcj02;
     }
 
-    public void setCnLat(String cnLat) {
-        this.cnLat = cnLat;
+    public void setLatitudeGcj02(double latitudeGcj02) {
+        this.latitudeGcj02 = latitudeGcj02;
+    }
+
+    public double getLongitudeWgs84() {
+        return longitudeWgs84;
+    }
+
+    public void setLongitudeWgs84(double longitudeWgs84) {
+        this.longitudeWgs84 = longitudeWgs84;
+    }
+
+    public double getLatitudeWgs84() {
+        return latitudeWgs84;
+    }
+
+    public void setLatitudeWgs84(double latitudeWgs84) {
+        this.latitudeWgs84 = latitudeWgs84;
+    }
+
+    public String getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(String createTime) {
+        this.createTime = createTime;
     }
 }

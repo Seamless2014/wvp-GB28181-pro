@@ -27,8 +27,7 @@ package com.genersoft.iot.vmp.gb28181.auth;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.text.DecimalFormat;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Random;
 
 import javax.sip.address.URI;
@@ -90,17 +89,12 @@ public class DigestServerAuthenticationHelper  {
      * @return a generated nonce.
      */
     private String generateNonce() {
-        // Get the time of day and run MD5 over it.
-        Date date = new Date();
-        long time = date.getTime();
+        long time = Instant.now().toEpochMilli();
         Random rand = new Random();
         long pad = rand.nextLong();
-        // String nonceString = (new Long(time)).toString()
-        //         + (new Long(pad)).toString();
         String nonceString = Long.valueOf(time).toString()
                 + Long.valueOf(pad).toString();
         byte mdbytes[] = messageDigest.digest(nonceString.getBytes());
-        // Convert the mdbytes array into a hex string.
         return toHexString(mdbytes);
     }
 
@@ -129,7 +123,9 @@ public class DigestServerAuthenticationHelper  {
      */
     public boolean doAuthenticateHashedPassword(Request request, String hashedPassword) {
         AuthorizationHeader authHeader = (AuthorizationHeader) request.getHeader(AuthorizationHeader.NAME);
-        if ( authHeader == null ) return false;
+        if ( authHeader == null ) {
+            return false;
+        }
         String realm = authHeader.getRealm();
         String username = authHeader.getUsername();
 
@@ -176,7 +172,9 @@ public class DigestServerAuthenticationHelper  {
      */
     public boolean doAuthenticatePlainTextPassword(Request request, String pass) {
         AuthorizationHeader authHeader = (AuthorizationHeader) request.getHeader(AuthorizationHeader.NAME);
-        if ( authHeader == null ) return false;
+        if ( authHeader == null ) {
+            return false;
+        }
         String realm = authHeader.getRealm().trim();
         String username = authHeader.getUsername().trim();
 
@@ -194,12 +192,13 @@ public class DigestServerAuthenticationHelper  {
 
         // 客户端随机数，这是一个不透明的字符串值，由客户端提供，并且客户端和服务器都会使用，以避免用明文文本。
         // 这使得双方都可以查验对方的身份，并对消息的完整性提供一些保护
-        //String cNonce = authHeader.getCNonce();
+        String cnonce = authHeader.getCNonce();
 
         // nonce计数器，是一个16进制的数值，表示同一nonce下客户端发送出请求的数量
         int nc = authHeader.getNonceCount();
-        String ncStr = new DecimalFormat("00000000").format(nc);
-//        String ncStr = new DecimalFormat("00000000").format(Integer.parseInt(nc + "", 16));
+        String ncStr = String.format("%08x", nc).toUpperCase();
+        // String ncStr = new DecimalFormat("00000000").format(nc);
+        // String ncStr = new DecimalFormat("00000000").format(Integer.parseInt(nc + "", 16));
 
         String A1 = username + ":" + realm + ":" + pass;
         String A2 = request.getMethod().toUpperCase() + ":" + uri.toString();
@@ -212,7 +211,7 @@ public class DigestServerAuthenticationHelper  {
         String HA2 = toHexString(mdbytes);
         logger.debug("HA1: " + HA1);
         logger.debug("HA2: " + HA2);
-        String cnonce = authHeader.getCNonce();
+        // String cnonce = authHeader.getCNonce();
         logger.debug("nonce: " + nonce);
         logger.debug("nc: " + ncStr);
         logger.debug("cnonce: " + cnonce);

@@ -32,6 +32,14 @@ public interface DeviceMapper {
                 "keepaliveTime," +
                 "createTime," +
                 "updateTime," +
+                "charset," +
+                "subscribeCycleForCatalog," +
+                "subscribeCycleForMobilePosition," +
+                "mobilePositionSubmissionInterval," +
+                "subscribeCycleForAlarm," +
+                "ssrcCheck," +
+                "geoCoordSys," +
+                "treeType," +
                 "online" +
             ") VALUES (" +
                 "#{deviceId}," +
@@ -49,6 +57,14 @@ public interface DeviceMapper {
                 "#{keepaliveTime}," +
                 "#{createTime}," +
                 "#{updateTime}," +
+                "#{charset}," +
+                "#{subscribeCycleForCatalog}," +
+                "#{subscribeCycleForMobilePosition}," +
+                "#{mobilePositionSubmissionInterval}," +
+                "#{subscribeCycleForAlarm}," +
+                "#{ssrcCheck}," +
+                "#{geoCoordSys}," +
+                "#{treeType}," +
                 "#{online}" +
             ")")
     int add(Device device);
@@ -69,6 +85,14 @@ public interface DeviceMapper {
                 "<if test=\"registerTime != null\">, registerTime='${registerTime}'</if>" +
                 "<if test=\"keepaliveTime != null\">, keepaliveTime='${keepaliveTime}'</if>" +
                 "<if test=\"expires != null\">, expires=${expires}</if>" +
+                "<if test=\"charset != null\">, charset='${charset}'</if>" +
+                "<if test=\"subscribeCycleForCatalog != null\">, subscribeCycleForCatalog=${subscribeCycleForCatalog}</if>" +
+                "<if test=\"subscribeCycleForMobilePosition != null\">, subscribeCycleForMobilePosition=${subscribeCycleForMobilePosition}</if>" +
+                "<if test=\"mobilePositionSubmissionInterval != null\">, mobilePositionSubmissionInterval=${mobilePositionSubmissionInterval}</if>" +
+                "<if test=\"subscribeCycleForAlarm != null\">, subscribeCycleForAlarm=${subscribeCycleForAlarm}</if>" +
+                "<if test=\"ssrcCheck != null\">, ssrcCheck=${ssrcCheck}</if>" +
+                "<if test=\"geoCoordSys != null\">, geoCoordSys=#{geoCoordSys}</if>" +
+                "<if test=\"treeType != null\">, treeType=#{treeType}</if>" +
                 "WHERE deviceId='${deviceId}'"+
             " </script>"})
     int update(Device device);
@@ -81,4 +105,9 @@ public interface DeviceMapper {
 
     @Update("UPDATE device SET online=0")
     int outlineForAll();
+
+    @Select("SELECT * FROM device WHERE online = 1")
+    List<Device> getOnlineDevices();
+    @Select("SELECT * FROM device WHERE ip = #{host} AND port=${port}")
+    Device getDeviceByHostAndPort(String host, int port);
 }

@@ -1,6 +1,10 @@
 package com.genersoft.iot.vmp.gb28181.bean;
 
 
+/**
+ * 国标设备/平台
+ * @author lin
+ */
 public class Device {
 
 	/**
@@ -98,6 +102,47 @@ public class Device {
 	 * 设备使用的媒体id, 默认为null
 	 */
 	private String mediaServerId;
+
+	/**
+	 * 字符集, 支持 UTF-8 与 GB2312
+	 */
+	private String charset ;
+
+	/**
+	 * 目录订阅周期，0为不订阅
+	 */
+	private int subscribeCycleForCatalog;
+
+	/**
+	 * 移动设备位置订阅周期，0为不订阅
+	 */
+	private int subscribeCycleForMobilePosition;
+
+	/**
+	 * 移动设备位置信息上报时间间隔,单位:秒,默认值5
+	 */
+	private int mobilePositionSubmissionInterval = 5;
+
+	/**
+	 * 报警订阅周期，0为不订阅
+	 */
+	private int subscribeCycleForAlarm;
+
+	/**
+	 * 是否开启ssrc校验，默认关闭，开启可以防止串流
+	 */
+	private boolean ssrcCheck = true;
+
+	/**
+	 * 地理坐标系， 目前支持 WGS84,GCJ02 TODO CGCS2000
+	 */
+	private String geoCoordSys;
+
+	/**
+	 * 树类型 国标规定了两种树的展现方式 行政区划：CivilCode 和业务分组:BusinessGroup
+	 */
+	private String treeType;
+
 
 	public String getDeviceId() {
 		return deviceId;
@@ -241,5 +286,69 @@ public class Device {
 
 	public void setMediaServerId(String mediaServerId) {
 		this.mediaServerId = mediaServerId;
+	}
+
+	public String getCharset() {
+		return charset;
+	}
+
+	public void setCharset(String charset) {
+		this.charset = charset;
+	}
+
+	public int getSubscribeCycleForCatalog() {
+		return subscribeCycleForCatalog;
+	}
+
+	public void setSubscribeCycleForCatalog(int subscribeCycleForCatalog) {
+		this.subscribeCycleForCatalog = subscribeCycleForCatalog;
+	}
+
+	public int getSubscribeCycleForMobilePosition() {
+		return subscribeCycleForMobilePosition;
+	}
+
+	public void setSubscribeCycleForMobilePosition(int subscribeCycleForMobilePosition) {
+		this.subscribeCycleForMobilePosition = subscribeCycleForMobilePosition;
+	}
+
+	public int getMobilePositionSubmissionInterval() {
+		return mobilePositionSubmissionInterval;
+	}
+
+	public void setMobilePositionSubmissionInterval(int mobilePositionSubmissionInterval) {
+		this.mobilePositionSubmissionInterval = mobilePositionSubmissionInterval;
+	}
+
+	public int getSubscribeCycleForAlarm() {
+		return subscribeCycleForAlarm;
+	}
+
+	public void setSubscribeCycleForAlarm(int subscribeCycleForAlarm) {
+		this.subscribeCycleForAlarm = subscribeCycleForAlarm;
+	}
+
+	public boolean isSsrcCheck() {
+		return ssrcCheck;
+	}
+
+	public void setSsrcCheck(boolean ssrcCheck) {
+		this.ssrcCheck = ssrcCheck;
+	}
+
+	public String getGeoCoordSys() {
+		return geoCoordSys;
+	}
+
+	public void setGeoCoordSys(String geoCoordSys) {
+		this.geoCoordSys = geoCoordSys;
+	}
+
+	public String getTreeType() {
+		return treeType;
+	}
+
+	public void setTreeType(String treeType) {
+		this.treeType = treeType;
 	}
 }

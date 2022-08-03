@@ -1,15 +1,16 @@
 package com.genersoft.iot.vmp.vmanager.gb28181.MobilePosition;
 
 import java.util.List;
-
-import javax.sip.message.Response;
+import java.util.UUID;
 
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.MobilePosition;
 import com.genersoft.iot.vmp.gb28181.transmit.callback.DeferredResultHolder;
 import com.genersoft.iot.vmp.gb28181.transmit.callback.RequestMessage;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.impl.SIPCommander;
-import com.genersoft.iot.vmp.storager.IVideoManagerStorager;
+import com.genersoft.iot.vmp.service.IDeviceService;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
+import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import com.github.pagehelper.util.StringUtil;
 
 import io.swagger.annotations.Api;
@@ -41,13 +42,16 @@ public class MobilePositionController {
     private final static Logger logger = LoggerFactory.getLogger(MobilePositionController.class);
 
     @Autowired
-    private IVideoManagerStorager storager;
+    private IVideoManagerStorage storager;
     
 	@Autowired
 	private SIPCommander cmder;
 	
 	@Autowired
 	private DeferredResultHolder resultHolder;
+
+	@Autowired
+	private IDeviceService deviceService;
 
     /**
      *  查询历史轨迹
@@ -59,16 +63,18 @@ public class MobilePositionController {
     @ApiOperation("查询历史轨迹")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "deviceId", value = "设备ID", required = true, dataTypeClass = String.class),
-            @ApiImplicitParam(name = "start", value = "开始时间", required = true, dataTypeClass = String.class),
-            @ApiImplicitParam(name = "end", value = "结束时间", required = true, dataTypeClass = String.class),
+            @ApiImplicitParam(name = "channelId", value = "通道ID", required = false, dataTypeClass = String.class),
+            @ApiImplicitParam(name = "start", value = "开始时间", required = false, dataTypeClass = String.class),
+            @ApiImplicitParam(name = "end", value = "结束时间", required = false, dataTypeClass = String.class),
     })
     @GetMapping("/history/{deviceId}")
-    public ResponseEntity<List<MobilePosition>> positions(@PathVariable String deviceId,
-                                                    @RequestParam(required = false) String start,
-                                                    @RequestParam(required = false) String end) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("查询设备" + deviceId + "的历史轨迹");
-        }
+    public ResponseEntity<WVPResult<List<MobilePosition>>> positions(@PathVariable String deviceId,
+                                                                     @RequestParam(required = false) String channelId,
+                                                                     @RequestParam(required = false) String start,
+                                                                     @RequestParam(required = false) String end) {
+//        if (logger.isDebugEnabled()) {
+//            logger.debug("查询设备" + deviceId + "的历史轨迹");
+//        }
 
         if (StringUtil.isEmpty(start)) {
             start = null;
@@ -76,9 +82,11 @@ public class MobilePositionController {
         if (StringUtil.isEmpty(end)) {
             end = null;
         }
-
-        List<MobilePosition> result = storager.queryMobilePositions(deviceId, start, end);
-        return new ResponseEntity<>(result, HttpStatus.OK);
+        WVPResult<List<MobilePosition>> wvpResult = new WVPResult<>();
+        wvpResult.setCode(0);
+        List<MobilePosition> result = storager.queryMobilePositions(deviceId, channelId, start, end);
+        wvpResult.setData(result);
+        return new ResponseEntity<>(wvpResult, HttpStatus.OK);
     }
 
     /**
@@ -92,9 +100,9 @@ public class MobilePositionController {
     })
     @GetMapping("/latest/{deviceId}")
     public ResponseEntity<MobilePosition> latestPosition(@PathVariable String deviceId) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("查询设备" + deviceId + "的最新位置");
-        }
+//        if (logger.isDebugEnabled()) {
+//            logger.debug("查询设备" + deviceId + "的最新位置");
+//        }
         MobilePosition result = storager.queryLatestPosition(deviceId);
         return new ResponseEntity<>(result, HttpStatus.OK);
     }
@@ -111,11 +119,13 @@ public class MobilePositionController {
     @GetMapping("/realtime/{deviceId}")
     public DeferredResult<ResponseEntity<MobilePosition>> realTimePosition(@PathVariable String deviceId) {
         Device device = storager.queryVideoDevice(deviceId);
+        String uuid = UUID.randomUUID().toString();
+        String key = DeferredResultHolder.CALLBACK_CMD_MOBILEPOSITION + deviceId;
         cmder.mobilePostitionQuery(device, event -> {
-			Response response = event.getResponse();
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_MOBILEPOSITION + deviceId);
-			msg.setData(String.format("获取移动位置信息失败，错误码： %s, %s", response.getStatusCode(), response.getReasonPhrase()));
+			msg.setId(uuid);
+            msg.setKey(key);
+			msg.setData(String.format("获取移动位置信息失败，错误码： %s, %s", event.statusCode, event.msg));
 			resultHolder.invokeResult(msg);
 		});
         DeferredResult<ResponseEntity<MobilePosition>> result = new DeferredResult<ResponseEntity<MobilePosition>>(5*1000L);
@@ -123,11 +133,12 @@ public class MobilePositionController {
 			logger.warn(String.format("获取移动位置信息超时"));
 			// 释放rtpserver
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_CATALOG+deviceId);
+            msg.setId(uuid);
+            msg.setKey(key);
 			msg.setData("Timeout");
 			resultHolder.invokeResult(msg);
 		});
-        resultHolder.put(DeferredResultHolder.CALLBACK_CMD_CATALOG+deviceId, result);
+        resultHolder.put(key, uuid, result);
         return result;
     }
 
@@ -157,9 +168,11 @@ public class MobilePositionController {
             interval = "5";
         }
         Device device = storager.queryVideoDevice(deviceId);
-
+        device.setSubscribeCycleForMobilePosition(Integer.parseInt(expires));
+        device.setMobilePositionSubmissionInterval(Integer.parseInt(interval));
+        deviceService.updateDevice(device);
         String result = msg;
-        if (cmder.mobilePositionSubscribe(device, Integer.parseInt(expires), Integer.parseInt(interval))) {
+        if (deviceService.removeMobilePositionSubscribe(device)) {
             result += "，成功";
         } else {
             result += "，失败";

@@ -6,7 +6,7 @@ import com.genersoft.iot.vmp.gb28181.event.EventPublisher;
 import com.genersoft.iot.vmp.gb28181.event.SipSubscribe;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
-import com.genersoft.iot.vmp.storager.IVideoManagerStorager;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,11 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Component;
 
-import javax.sip.ResponseEvent;
 import javax.sip.message.Response;
 
 /**
- * @Description: 平台心跳超时事件
+ * @description: 平台心跳超时事件
  * @author: panll
  * @date: 2020年11月5日 10:00
  */
@@ -29,7 +28,7 @@ public class PlatformKeepaliveExpireEventLister implements ApplicationListener<P
     private final static Logger logger = LoggerFactory.getLogger(PlatformKeepaliveExpireEventLister.class);
 
     @Autowired
-    private IVideoManagerStorager storager;
+    private IVideoManagerStorage storager;
 
     @Autowired
     private IRedisCatchStorage redisCatchStorage;
@@ -66,6 +65,7 @@ public class PlatformKeepaliveExpireEventLister implements ApplicationListener<P
             storager.updateParentPlatformStatus(event.getPlatformGbID(), false);
             publisher.platformNotRegisterEventPublish(event.getPlatformGbID());
             parentPlatformCatch.setKeepAliveReply(0);
+            redisCatchStorage.updatePlatformCatchInfo(parentPlatformCatch);
         }else {
             // 再次发送心跳
             String callId = sipCommanderForPlatform.keepalive(parentPlatform);
@@ -75,8 +75,8 @@ public class PlatformKeepaliveExpireEventLister implements ApplicationListener<P
             redisCatchStorage.updatePlatformKeepalive(parentPlatform);
             redisCatchStorage.updatePlatformCatchInfo(parentPlatformCatch);
 
-            sipSubscribe.addOkSubscribe(callId, (ResponseEvent responseEvent) ->{
-                if (responseEvent.getResponse().getStatusCode() == Response.OK) {
+            sipSubscribe.addOkSubscribe(callId, (SipSubscribe.EventResult eventResult) ->{
+                if (eventResult.statusCode == Response.OK) {
                     // 收到心跳响应信息,
                     parentPlatformCatch.setKeepAliveReply(0);
                     redisCatchStorage.updatePlatformCatchInfo(parentPlatformCatch);

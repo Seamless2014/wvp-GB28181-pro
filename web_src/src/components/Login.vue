@@ -22,7 +22,7 @@
           </div>
 
           <div class="container-login100-form-btn">
-            <div class="wrap-login100-form-btn">
+            <div class="wrap-login100-form-btn" :class="{'login-loading': isLoging}" v-loading="isLoging" element-loading-background="rgb(0 0 0 / 0%);" element-loading-custom-class="login-loading-class">
               <div class="login100-form-bgbtn"></div>
               <button class="login100-form-btn" @click="login">登录</button>
             </div>
@@ -41,6 +41,7 @@ export default {
   	return {
       isLoging: false,
       showPassword: false,
+      loginLoading: false,
   		username: '',
   		password: ''
   	}
@@ -85,7 +86,7 @@ export default {
       }).then(function (res) {
         console.log(JSON.stringify(res));
           if (res.data.code == 0 && res.data.msg == "success") {
-            that.$cookies.set("session", {"username": that.username}) ;
+            that.$cookies.set("session", {"username": that.username,"roleId":res.data.data.role.id}) ;
             //登录成功后
             that.cancelEnterkeyDefaultAction();
             that.$router.push('/');

@@ -1,12 +1,16 @@
 package com.genersoft.iot.vmp.conf;
 
+import com.genersoft.iot.vmp.common.VideoManagerConstants;
+import com.genersoft.iot.vmp.service.impl.*;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CachingConfigurerSupport;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -16,7 +20,7 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
 /**
- * @Description:Redis中间件配置类，使用spring-data-redis集成，自动从application.yml中加载redis配置
+ * @description:Redis中间件配置类，使用spring-data-redis集成，自动从application.yml中加载redis配置
  * @author: swwheihei
  * @date: 2019年5月30日 上午10:58:25
  * 
@@ -40,6 +44,21 @@ public class RedisConfig extends CachingConfigurerSupport {
 	private int poolMaxIdle;
 	@Value("${spring.redis.poolMaxWait:5}")
 	private int poolMaxWait;
+
+	@Autowired
+	private RedisGpsMsgListener redisGPSMsgListener;
+
+	@Autowired
+	private RedisAlarmMsgListener redisAlarmMsgListener;
+
+	@Autowired
+	private RedisStreamMsgListener redisStreamMsgListener;
+
+	@Autowired
+	private RedisGbPlayMsgListener redisGbPlayMsgListener;
+
+	@Autowired
+	private RedisPushStreamStatusMsgListener redisPushStreamStatusMsgListener;
 
 	@Bean
 	public JedisPool jedisPool() {
@@ -85,6 +104,11 @@ public class RedisConfig extends CachingConfigurerSupport {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
+		container.addMessageListener(redisGPSMsgListener, new PatternTopic(VideoManagerConstants.VM_MSG_GPS));
+		container.addMessageListener(redisAlarmMsgListener, new PatternTopic(VideoManagerConstants.VM_MSG_SUBSCRIBE_ALARM_RECEIVE));
+		container.addMessageListener(redisStreamMsgListener, new PatternTopic(VideoManagerConstants.WVP_MSG_STREAM_CHANGE_PREFIX + "PUSH"));
+		container.addMessageListener(redisGbPlayMsgListener, new PatternTopic(RedisGbPlayMsgListener.WVP_PUSH_STREAM_KEY));
+		container.addMessageListener(redisPushStreamStatusMsgListener, new PatternTopic(VideoManagerConstants.VM_MSG_PUSH_STREAM_STATUS_CHANGE));
         return container;
     }
 

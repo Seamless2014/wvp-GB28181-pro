@@ -7,14 +7,12 @@
 
 package com.genersoft.iot.vmp.vmanager.gb28181.device;
 
-import javax.sip.message.Response;
-
 import com.alibaba.fastjson.JSONObject;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.transmit.callback.DeferredResultHolder;
 import com.genersoft.iot.vmp.gb28181.transmit.callback.RequestMessage;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.impl.SIPCommander;
-import com.genersoft.iot.vmp.storager.IVideoManagerStorager;
+import com.genersoft.iot.vmp.storager.IVideoManagerStorage;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -29,6 +27,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
 
+import java.util.UUID;
+
 @Api(tags = "国标设备控制")
 @CrossOrigin
 @RestController
@@ -38,7 +38,7 @@ public class DeviceControl {
     private final static Logger logger = LoggerFactory.getLogger(DeviceQuery.class);
 
     @Autowired
-    private IVideoManagerStorager storager;
+    private IVideoManagerStorage storager;
 
     @Autowired
     private SIPCommander cmder;
@@ -89,28 +89,35 @@ public class DeviceControl {
 	})
     @GetMapping("/record/{deviceId}/{recordCmdStr}")
     public DeferredResult<ResponseEntity<String>> recordApi(@PathVariable String deviceId,
-            @PathVariable String recordCmdStr, @RequestParam(required = false) String channelId) {
+            @PathVariable String recordCmdStr, String channelId) {
         if (logger.isDebugEnabled()) {
             logger.debug("开始/停止录像API调用");
         }
         Device device = storager.queryVideoDevice(deviceId);
-        cmder.recordCmd(device, channelId, recordCmdStr, event -> {
-            Response response = event.getResponse();
-            RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId));
-			msg.setData(String.format("开始/停止录像操作失败，错误码： %s, %s", response.getStatusCode(), response.getReasonPhrase()));
-			resultHolder.invokeResult(msg);
-		});
-        DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>(3 * 1000L);
+		String uuid = UUID.randomUUID().toString();
+		String key = DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL +  deviceId + channelId;
+		DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>(3 * 1000L);
 		result.onTimeout(() -> {
 			logger.warn(String.format("开始/停止录像操作超时, 设备未返回应答指令"));
 			// 释放rtpserver
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId));
+			msg.setKey(key);
+			msg.setId(uuid);
 			msg.setData("Timeout. Device did not response to this command.");
-			resultHolder.invokeResult(msg);
+			resultHolder.invokeAllResult(msg);
 		});
-		resultHolder.put(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId), result);
+		if (resultHolder.exist(key, null)){
+			return result;
+		}
+		resultHolder.put(key, uuid, result);
+		cmder.recordCmd(device, channelId, recordCmdStr, event -> {
+            RequestMessage msg = new RequestMessage();
+			msg.setId(uuid);
+			msg.setKey(key);
+			msg.setData(String.format("开始/停止录像操作失败，错误码： %s, %s", event.statusCode, event.msg));
+			resultHolder.invokeAllResult(msg);
+		});
+
 		return result;
 	}
 
@@ -123,32 +130,37 @@ public class DeviceControl {
 	@ApiOperation("布防/撤防命令")
 	@ApiImplicitParams({
 			@ApiImplicitParam(name = "deviceId", value = "设备ID", required = true, dataTypeClass = String.class),
+			@ApiImplicitParam(name = "channelId", value ="通道编码" ,dataTypeClass = String.class),
 			@ApiImplicitParam(name = "guardCmdStr", value ="命令， 可选值：SetGuard（布防），ResetGuard（撤防）", required = true,
 					dataTypeClass = String.class)
 	})
 	@GetMapping("/guard/{deviceId}/{guardCmdStr}")
-	public DeferredResult<ResponseEntity<String>> guardApi(@PathVariable String deviceId, @PathVariable String guardCmdStr) {
+	public DeferredResult<ResponseEntity<String>> guardApi(@PathVariable String deviceId, String channelId, @PathVariable String guardCmdStr) {
 		if (logger.isDebugEnabled()) {
 			logger.debug("布防/撤防API调用");
 		}
 		Device device = storager.queryVideoDevice(deviceId);
+		String key = DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId + channelId;
+		String uuid =UUID.randomUUID().toString();
 		cmder.guardCmd(device, guardCmdStr, event -> {
-			Response response = event.getResponse();
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId);
-			msg.setData(String.format("布防/撤防操作失败，错误码： %s, %s", response.getStatusCode(), response.getReasonPhrase()));
+			msg.setId(uuid);
+			msg.setKey(key);
+			msg.setData(String.format("布防/撤防操作失败，错误码： %s, %s", event.statusCode, event.msg));
 			resultHolder.invokeResult(msg);
 		});
         DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>(3 * 1000L);
+		resultHolder.put(key, uuid, result);
 		result.onTimeout(() -> {
 			logger.warn(String.format("布防/撤防操作超时, 设备未返回应答指令"));
 			// 释放rtpserver
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId);
+			msg.setKey(key);
+			msg.setId(uuid);
 			msg.setData("Timeout. Device did not response to this command.");
 			resultHolder.invokeResult(msg);
 		});
-		resultHolder.put(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId, result);
+
 		return result;
 	}
 
@@ -162,22 +174,25 @@ public class DeviceControl {
 	@ApiOperation("报警复位")
 	@ApiImplicitParams({
 			@ApiImplicitParam(name = "deviceId", value = "设备ID", required = true, dataTypeClass = String.class),
+			@ApiImplicitParam(name = "channelId", value ="通道编码" ,dataTypeClass = String.class),
 			@ApiImplicitParam(name = "alarmMethod", value ="报警方式", dataTypeClass = String.class),
 			@ApiImplicitParam(name = "alarmType", value ="报警类型", dataTypeClass = String.class),
 	})
 	@GetMapping("/reset_alarm/{deviceId}")
-	public DeferredResult<ResponseEntity<String>> resetAlarmApi(@PathVariable String deviceId, 
+	public DeferredResult<ResponseEntity<String>> resetAlarmApi(@PathVariable String deviceId, String channelId,
 																@RequestParam(required = false) String alarmMethod,
 																@RequestParam(required = false) String alarmType) {
 		if (logger.isDebugEnabled()) {
 			logger.debug("报警复位API调用");
 		}
 		Device device = storager.queryVideoDevice(deviceId);
+		String uuid = UUID.randomUUID().toString();
+		String key = DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId + channelId;
 		cmder.alarmCmd(device, alarmMethod, alarmType, event -> {
-			Response response = event.getResponse();
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId);
-			msg.setData(String.format("报警复位操作失败，错误码： %s, %s", response.getStatusCode(), response.getReasonPhrase()));
+			msg.setId(uuid);
+			msg.setKey(key);
+			msg.setData(String.format("报警复位操作失败，错误码： %s, %s", event.statusCode, event.msg));
 			resultHolder.invokeResult(msg);
 		});
         DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>(3 * 1000L);
@@ -185,11 +200,12 @@ public class DeviceControl {
 			logger.warn(String.format("报警复位操作超时, 设备未返回应答指令"));
 			// 释放rtpserver
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId);
+			msg.setId(uuid);
+			msg.setKey(key);
 			msg.setData("Timeout. Device did not response to this command.");
 			resultHolder.invokeResult(msg);
 		});
-		resultHolder.put(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + deviceId, result);
+		resultHolder.put(key, uuid, result);
 		return result;
 	}
 
@@ -236,6 +252,7 @@ public class DeviceControl {
 	@ApiOperation("看守位控制")
 	@ApiImplicitParams({
 			@ApiImplicitParam(name = "deviceId", value = "设备ID", required = true, dataTypeClass = String.class),
+			@ApiImplicitParam(name = "channelId", value ="通道编码" ,dataTypeClass = String.class),
 			@ApiImplicitParam(name = "enabled", value = "是否开启看守位 1:开启,0:关闭", required = true, dataTypeClass = String.class),
 			@ApiImplicitParam(name = "resetTime", value = "自动归位时间间隔", dataTypeClass = String.class),
 			@ApiImplicitParam(name = "presetIndex", value = "调用预置位编号", dataTypeClass = String.class),
@@ -246,16 +263,18 @@ public class DeviceControl {
 																@PathVariable String enabled,
 																@RequestParam(required = false) String resetTime,
 																@RequestParam(required = false) String presetIndex,
-                                                                @RequestParam(required = false) String channelId) {
+                                                                String channelId) {
         if (logger.isDebugEnabled()) {
 			logger.debug("报警复位API调用");
 		}
+		String key = DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId);
+		String uuid = UUID.randomUUID().toString();
 		Device device = storager.queryVideoDevice(deviceId);
 		cmder.homePositionCmd(device, channelId, enabled, resetTime, presetIndex, event -> {
-			Response response = event.getResponse();
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId));
-			msg.setData(String.format("看守位控制操作失败，错误码： %s, %s", response.getStatusCode(), response.getReasonPhrase()));
+			msg.setId(uuid);
+			msg.setKey(key);
+			msg.setData(String.format("看守位控制操作失败，错误码： %s, %s", event.statusCode, event.msg));
 			resultHolder.invokeResult(msg);
 		});
         DeferredResult<ResponseEntity<String>> result = new DeferredResult<ResponseEntity<String>>(3 * 1000L);
@@ -263,7 +282,8 @@ public class DeviceControl {
 			logger.warn(String.format("看守位控制操作超时, 设备未返回应答指令"));
 			// 释放rtpserver
 			RequestMessage msg = new RequestMessage();
-			msg.setId(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId));
+			msg.setId(uuid);
+			msg.setKey(key);
 			JSONObject json = new JSONObject();
 			json.put("DeviceID", deviceId);
 			json.put("Status", "Timeout");
@@ -271,7 +291,106 @@ public class DeviceControl {
 			msg.setData(json); //("看守位控制操作超时, 设备未返回应答指令");
 			resultHolder.invokeResult(msg);
 		});
-		resultHolder.put(DeferredResultHolder.CALLBACK_CMD_DEVICECONTROL + (StringUtils.isEmpty(channelId) ? deviceId : channelId), result);
+		resultHolder.put(key, uuid, result);
 		return result;
+	}
+
+	/**
+	 * 拉框放大
+	 * @param deviceId 设备id
+	 * @param channelId 通道id
+	 * @param length 播放窗口长度像素值
+	 * @param width 播放窗口宽度像素值
+	 * @param midpointx 拉框中心的横轴坐标像素值
+	 * @param midpointy 拉框中心的纵轴坐标像素值
+	 * @param lengthx 拉框长度像素值
+	 * @param lengthy 拉框宽度像素值
+	 * @return
+	 */
+	@ApiOperation("拉框放大")
+	@ApiImplicitParams({
+			@ApiImplicitParam(name = "deviceId", value = "设备ID", required = true, dataTypeClass = String.class),
+			@ApiImplicitParam(name = "channelId", value = "通道ID", dataTypeClass = String.class),
+			@ApiImplicitParam(name = "length", value = "播放窗口长度像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "width", value = "播放窗口宽度像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "midpointx", value = "拉框中心的横轴坐标像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "midpointy", value = "拉框中心的纵轴坐标像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "lengthx", value = "拉框长度像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "lengthy", value = "拉框宽度像素值", required = true, dataTypeClass = Integer.class),
+	})
+	@GetMapping("drag_zoom/zoom_in")
+	public ResponseEntity<String> dragZoomIn(@RequestParam String deviceId,
+											 @RequestParam(required = false) String channelId,
+											 @RequestParam int length,
+											 @RequestParam int width,
+											 @RequestParam int midpointx,
+											 @RequestParam int midpointy,
+											 @RequestParam int lengthx,
+											 @RequestParam int lengthy){
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format("设备拉框放大 API调用，deviceId：%s ，channelId：%s ，length：%d ，width：%d ，midpointx：%d ，midpointy：%d ，lengthx：%d ，lengthy：%d",deviceId, channelId, length, width, midpointx, midpointy,lengthx, lengthy));
+		}
+		Device device = storager.queryVideoDevice(deviceId);
+		StringBuffer cmdXml = new StringBuffer(200);
+		cmdXml.append("<DragZoomIn>\r\n");
+		cmdXml.append("<Length>" + length+ "</Length>\r\n");
+		cmdXml.append("<Width>" + width+ "</Width>\r\n");
+		cmdXml.append("<MidPointX>" + midpointx+ "</MidPointX>\r\n");
+		cmdXml.append("<MidPointY>" + midpointy+ "</MidPointY>\r\n");
+		cmdXml.append("<LengthX>" + lengthx+ "</LengthX>\r\n");
+		cmdXml.append("<LengthY>" + lengthy+ "</LengthY>\r\n");
+		cmdXml.append("</DragZoomIn>\r\n");
+		cmder.dragZoomCmd(device, channelId, cmdXml.toString());
+		return new ResponseEntity<String>("success", HttpStatus.OK);
+	}
+
+	/**
+	 * 拉框缩小
+	 * @param deviceId 设备id
+	 * @param channelId 通道id
+	 * @param length 播放窗口长度像素值
+	 * @param width 播放窗口宽度像素值
+	 * @param midpointx 拉框中心的横轴坐标像素值
+	 * @param midpointy 拉框中心的纵轴坐标像素值
+	 * @param lengthx 拉框长度像素值
+	 * @param lengthy 拉框宽度像素值
+	 * @return
+	 */
+	@ApiOperation("拉框缩小")
+	@ApiImplicitParams({
+			@ApiImplicitParam(name = "deviceId", value = "设备ID", required = true, dataTypeClass = String.class),
+			@ApiImplicitParam(name = "channelId", value = "通道ID", dataTypeClass = String.class),
+			@ApiImplicitParam(name = "length", value = "播放窗口长度像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "width", value = "播放窗口宽度像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "midpointx", value = "拉框中心的横轴坐标像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "midpointy", value = "拉框中心的纵轴坐标像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "lengthx", value = "拉框长度像素值", required = true, dataTypeClass = Integer.class),
+			@ApiImplicitParam(name = "lengthy", value = "拉框宽度像素值", required = true, dataTypeClass = Integer.class),
+	})
+	@GetMapping("/drag_zoom/zoom_out")
+	public ResponseEntity<String> dragZoomOut(@RequestParam String deviceId,
+											  @RequestParam(required = false) String channelId,
+											  @RequestParam int length,
+											  @RequestParam int width,
+											  @RequestParam int midpointx,
+											  @RequestParam int midpointy,
+											  @RequestParam int lengthx,
+											  @RequestParam int lengthy){
+
+		if (logger.isDebugEnabled()) {
+			logger.debug(String.format("设备拉框缩小 API调用，deviceId：%s ，channelId：%s ，length：%d ，width：%d ，midpointx：%d ，midpointy：%d ，lengthx：%d ，lengthy：%d",deviceId, channelId, length, width, midpointx, midpointy,lengthx, lengthy));
+		}
+		Device device = storager.queryVideoDevice(deviceId);
+		StringBuffer cmdXml = new StringBuffer(200);
+		cmdXml.append("<DragZoomOut>\r\n");
+		cmdXml.append("<Length>" + length+ "</Length>\r\n");
+		cmdXml.append("<Width>" + width+ "</Width>\r\n");
+		cmdXml.append("<MidPointX>" + midpointx+ "</MidPointX>\r\n");
+		cmdXml.append("<MidPointY>" + midpointy+ "</MidPointY>\r\n");
+		cmdXml.append("<LengthX>" + lengthx+ "</LengthX>\r\n");
+		cmdXml.append("<LengthY>" + lengthy+ "</LengthY>\r\n");
+		cmdXml.append("</DragZoomOut>\r\n");
+		cmder.dragZoomCmd(device, channelId, cmdXml.toString());
+		return new ResponseEntity<String>("success",HttpStatus.OK);
 	}
 }

@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.genersoft.iot.vmp.media.zlm.dto.MediaServerItem;
 import okhttp3.*;
+import okhttp3.logging.HttpLoggingInterceptor;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,9 +12,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class ZLMRESTfulUtils {
@@ -24,11 +27,34 @@ public class ZLMRESTfulUtils {
         void run(JSONObject response);
     }
 
+    private OkHttpClient getClient(){
+        OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
+        //todo 暂时写死超时时间 均为5s
+        httpClientBuilder.connectTimeout(5,TimeUnit.SECONDS);  //设置连接超时时间
+        httpClientBuilder.readTimeout(5,TimeUnit.SECONDS);     //设置读取超时时间
+        if (logger.isDebugEnabled()) {
+            HttpLoggingInterceptor logging = new HttpLoggingInterceptor(message -> {
+                logger.debug("http请求参数：" + message);
+            });
+            logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
+            // OkHttp進行添加攔截器loggingInterceptor
+            httpClientBuilder.addInterceptor(logging);
+        }
+        return httpClientBuilder.build();
+    }
+
+
     public JSONObject sendPost(MediaServerItem mediaServerItem, String api, Map<String, Object> param, RequestCallback callback) {
-        OkHttpClient client = new OkHttpClient();
+        OkHttpClient client = getClient();
+
+        if (mediaServerItem == null) {
+            return null;
+        }
         String url = String.format("http://%s:%s/index/api/%s",  mediaServerItem.getIp(), mediaServerItem.getHttpPort(), api);
-        JSONObject responseJSON = null;
-        logger.debug(url);
+        JSONObject responseJSON = new JSONObject();
+        //-2自定义流媒体 调用错误码
+        responseJSON.put("code",-2);
+        responseJSON.put("msg","流媒体调用失败");
 
         FormBody.Builder builder = new FormBody.Builder();
         builder.add("secret",mediaServerItem.getSecret());
@@ -50,16 +76,29 @@ public class ZLMRESTfulUtils {
                 try {
                     Response response = client.newCall(request).execute();
                     if (response.isSuccessful()) {
-                        String responseStr = response.body().string();
-                        if (responseStr != null) {
+                        ResponseBody responseBody = response.body();
+                        if (responseBody != null) {
+                            String responseStr = responseBody.string();
                             responseJSON = JSON.parseObject(responseStr);
                         }
+                    }else {
+                        response.close();
+                        Objects.requireNonNull(response.body()).close();
                     }
-                } catch (ConnectException e) {
-                    logger.error(String.format("连接ZLM失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
-                    logger.info("请检查media配置并确认ZLM已启动...");
                 }catch (IOException e) {
                     logger.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
+
+                    if(e instanceof SocketTimeoutException){
+                        //读取超时超时异常
+                        logger.error(String.format("读取ZLM数据失败: %s, %s", url, e.getMessage()));
+                    }
+                    if(e instanceof ConnectException){
+                        //判断连接异常，我这里是报Failed to connect to 10.7.5.144
+                        logger.error(String.format("连接ZLM失败: %s, %s", url, e.getMessage()));
+                    }
+
+                }catch (Exception e){
+                    logger.error(String.format("访问ZLM失败: %s, %s", url, e.getMessage()));
                 }
             }else {
                 client.newCall(request).enqueue(new Callback(){
@@ -73,13 +112,25 @@ public class ZLMRESTfulUtils {
                             } catch (IOException e) {
                                 logger.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
                             }
+
+                        }else {
+                            response.close();
+                            Objects.requireNonNull(response.body()).close();
                         }
                     }
 
                     @Override
                     public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                        logger.error(String.format("连接ZLM失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
-                        logger.info("请检查media配置并确认ZLM已启动...");
+                        logger.error(String.format("连接ZLM失败: %s, %s", call.request().toString(), e.getMessage()));
+
+                        if(e instanceof SocketTimeoutException){
+                            //读取超时超时异常
+                            logger.error(String.format("读取ZLM数据失败: %s, %s", call.request().toString(), e.getMessage()));
+                        }
+                        if(e instanceof ConnectException){
+                            //判断连接异常，我这里是报Failed to connect to 10.7.5.144
+                            logger.error(String.format("连接ZLM失败: %s, %s", call.request().toString(), e.getMessage()));
+                        }
                     }
                 });
             }
@@ -89,58 +140,72 @@ public class ZLMRESTfulUtils {
         return responseJSON;
     }
 
-
-    public void sendPostForImg(MediaServerItem mediaServerItem, String api, Map<String, Object> param, String targetPath, String fileName) {
-        OkHttpClient client = new OkHttpClient();
-        String url = String.format("http://%s:%s/index/api/%s",  mediaServerItem.getIp(), mediaServerItem.getHttpPort(), api);
-        JSONObject responseJSON = null;
+    public void sendGetForImg(MediaServerItem mediaServerItem, String api, Map<String, Object> params, String targetPath, String fileName) {
+        String url = String.format("http://%s:%s/index/api/%s", mediaServerItem.getIp(), mediaServerItem.getHttpPort(), api);
         logger.debug(url);
+        HttpUrl parseUrl = HttpUrl.parse(url);
+        if (parseUrl == null) {
+            return;
+        }
+        HttpUrl.Builder httpBuilder = parseUrl.newBuilder();
 
-        FormBody.Builder builder = new FormBody.Builder();
-        builder.add("secret",mediaServerItem.getSecret());
-        if (param != null && param.keySet().size() > 0) {
-            for (String key : param.keySet()){
-                if (param.get(key) != null) {
-                    builder.add(key, param.get(key).toString());
-                }
+        httpBuilder.addQueryParameter("secret", mediaServerItem.getSecret());
+        if (params != null) {
+            for (Map.Entry<String, Object> param : params.entrySet()) {
+                httpBuilder.addQueryParameter(param.getKey(), param.getValue().toString());
             }
         }
 
-        FormBody body = builder.build();
-
         Request request = new Request.Builder()
-                .post(body)
-                .url(url)
+                .url(httpBuilder.build())
                 .build();
+        logger.info(request.toString());
         try {
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .build();
             Response response = client.newCall(request).execute();
             if (response.isSuccessful()) {
+                logger.info("response body contentType: " + Objects.requireNonNull(response.body()).contentType());
                 if (targetPath != null) {
                     File snapFolder = new File(targetPath);
                     if (!snapFolder.exists()) {
-                        snapFolder.mkdirs();
+                        if (!snapFolder.mkdirs()) {
+                            logger.warn("{}路径创建失败", snapFolder.getAbsolutePath());
+                        }
+
                     }
-                    File snapFile = new File(targetPath + "/" + fileName);
+                    File snapFile = new File(targetPath + File.separator + fileName);
                     FileOutputStream outStream = new FileOutputStream(snapFile);
-                    outStream.write(response.body().bytes());
+
+                    outStream.write(Objects.requireNonNull(response.body()).bytes());
                     outStream.close();
+                } else {
+                    logger.error(String.format("[ %s ]请求失败: %s %s", url, response.code(), response.message()));
                 }
+                Objects.requireNonNull(response.body()).close();
+            } else {
+                logger.error(String.format("[ %s ]请求失败: %s %s", url, response.code(), response.message()));
             }
         } catch (ConnectException e) {
             logger.error(String.format("连接ZLM失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
             logger.info("请检查media配置并确认ZLM已启动...");
-        }catch (IOException e) {
+        } catch (IOException e) {
             logger.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
         }
-
     }
-
 
     public JSONObject getMediaList(MediaServerItem mediaServerItem, String app, String stream, String schema, RequestCallback callback){
         Map<String, Object> param = new HashMap<>();
-        if (app != null) param.put("app",app);
-        if (stream != null) param.put("stream",stream);
-        if (schema != null) param.put("schema",schema);
+        if (app != null) {
+            param.put("app",app);
+        }
+        if (stream != null) {
+            param.put("stream",stream);
+        }
+        if (schema != null) {
+            param.put("schema",schema);
+        }
         param.put("vhost","__defaultVhost__");
         return sendPost(mediaServerItem, "getMediaList",param, callback);
     }
@@ -216,6 +281,10 @@ public class ZLMRESTfulUtils {
         return sendPost(mediaServerItem, "stopSendRtp",param, null);
     }
 
+    public JSONObject restartServer(MediaServerItem mediaServerItem) {
+        return sendPost(mediaServerItem, "restartServer",null, null);
+    }
+
     public JSONObject addStreamProxy(MediaServerItem mediaServerItem, String app, String stream, String url, boolean enable_hls, boolean enable_mp4, String rtp_type) {
         Map<String, Object> param = new HashMap<>();
         param.put("vhost", "__defaultVhost__");
@@ -224,6 +293,11 @@ public class ZLMRESTfulUtils {
         param.put("url", url);
         param.put("enable_hls", enable_hls?1:0);
         param.put("enable_mp4", enable_mp4?1:0);
+        param.put("enable_rtmp", 1);
+        param.put("enable_fmp4", 1);
+        param.put("enable_audio", 1);
+        param.put("enable_rtsp", 1);
+        param.put("add_mute_audio", 1);
         param.put("rtp_type", rtp_type);
         return sendPost(mediaServerItem, "addStreamProxy",param, null);
     }
@@ -252,6 +326,6 @@ public class ZLMRESTfulUtils {
         param.put("url", flvUrl);
         param.put("timeout_sec", timeout_sec);
         param.put("expire_sec", expire_sec);
-        sendPostForImg(mediaServerItem, "getSnap",param, targetPath, fileName);
+        sendGetForImg(mediaServerItem, "getSnap", param, targetPath, fileName);
     }
 }

@@ -81,7 +81,6 @@ public class SsrcConfig {
             isUsed.remove(sn);
             notUsed.add(sn);
         }catch (NullPointerException e){
-            System.out.printf("11111");
         }
     }
 
@@ -137,4 +136,7 @@ public class SsrcConfig {
         this.notUsed = notUsed;
     }
 
+    public boolean checkSsrc(String ssrcInResponse) {
+        return !isUsed.contains(ssrcInResponse);
+    }
 }

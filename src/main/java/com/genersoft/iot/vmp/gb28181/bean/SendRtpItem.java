@@ -71,6 +71,40 @@ public class SendRtpItem {
      */
     private String mediaServerId;
 
+    /**
+     * 使用的服务的ID
+     */
+    private String serverId;
+
+    /**
+     *  invite的callId
+     */
+    private String CallId;
+
+    /**
+     * 发送时，rtp的pt（uint8_t）,不传时默认为96
+     */
+    private int pt = 96;
+
+    /**
+     * 发送时，rtp的负载类型。为true时，负载为ps；为false时，为es；
+     */
+    private boolean usePs = true;
+
+    /**
+     * 当usePs 为false时，有效。为1时，发送音频；为0时，发送视频；不传时默认为0
+     */
+    private boolean onlyAudio = false;
+
+    /**
+     * 播放类型
+     */
+    private InviteStreamType playType;
+
+    private byte[] transaction;
+
+    private byte[] dialog;
+
     public String getIp() {
         return ip;
     }
@@ -173,5 +207,69 @@ public class SendRtpItem {
 
     public void setMediaServerId(String mediaServerId) {
         this.mediaServerId = mediaServerId;
+    }
+
+    public String getCallId() {
+        return CallId;
+    }
+
+    public void setCallId(String callId) {
+        CallId = callId;
+    }
+
+    public InviteStreamType getPlayType() {
+        return playType;
+    }
+
+    public void setPlayType(InviteStreamType playType) {
+        this.playType = playType;
+    }
+
+    public byte[] getTransaction() {
+        return transaction;
+    }
+
+    public void setTransaction(byte[] transaction) {
+        this.transaction = transaction;
+    }
+
+    public byte[] getDialog() {
+        return dialog;
+    }
+
+    public void setDialog(byte[] dialog) {
+        this.dialog = dialog;
+    }
+
+    public int getPt() {
+        return pt;
+    }
+
+    public void setPt(int pt) {
+        this.pt = pt;
+    }
+
+    public boolean isUsePs() {
+        return usePs;
+    }
+
+    public void setUsePs(boolean usePs) {
+        this.usePs = usePs;
+    }
+
+    public boolean isOnlyAudio() {
+        return onlyAudio;
+    }
+
+    public void setOnlyAudio(boolean onlyAudio) {
+        this.onlyAudio = onlyAudio;
+    }
+
+    public String getServerId() {
+        return serverId;
+    }
+
+    public void setServerId(String serverId) {
+        this.serverId = serverId;
     }
 }
